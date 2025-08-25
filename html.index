@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تسجيل الدخول - موقع شحن الألعاب</title>
+<style>
+body { font-family: Arial; background: #111; color: #fff; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+.container { background: #222; padding: 20px; border-radius: 10px; width: 300px; text-align: center; }
+input { width: 100%; padding: 10px; margin: 10px 0; border-radius: 5px; border: none; }
+button { padding: 10px 20px; border: none; background: #0a84ff; color: #fff; border-radius: 5px; cursor: pointer; }
+button:disabled { background: #555; cursor: not-allowed; }
+#loginMsg { margin-top: 10px; font-size: 0.9em; color: #ffb74d; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h2>تسجيل الدخول</h2>
+  <input type="email" id="loginEmail" placeholder="أدخل بريدك الإلكتروني">
+  <button onclick="sendCode()" id="sendBtn">أرسل الكود</button>
+  <input type="text" id="loginCode" placeholder="أدخل الكود هنا">
+  <button onclick="verifyCode()">تحقق من الكود</button>
+  <div id="loginMsg"></div>
+</div>
+
+<script>
+const BASE_URL = 'http://localhost:3000'; // غيّرها للرابط الفعلي للسيرفر
+
+function startSendCooldown(seconds){
+  const btn = document.getElementById('sendBtn');
+  btn.disabled = true;
+  let remaining = seconds;
+  const interval = setInterval(()=>{
+    if(remaining <= 0){ btn.disabled = false; btn.textContent = 'أرسل الكود'; clearInterval(interval); }
+    else { btn.textContent = `أرسل الكود (${remaining}s)`; remaining--; }
+  }, 1000);
+}
+
+async function sendCode(){
+  const email = document.getElementById('loginEmail').value.trim();
+  if(!email){ alert('أدخل بريدًا إلكترونيًا صالحًا'); return; }
+  document.getElementById('loginMsg').textContent = 'جاري إرسال الكود...';
+
+  try{
+    const cfgRes = await fetch(`${BASE_URL}/config`);
+    const cfg = await cfgRes.json().catch(()=>({}));
+    const cooldownSec = (cfg && cfg.EMAIL_SEND_COOLDOWN_MS) ? Math.round(Number(cfg.EMAIL_SEND_COOLDOWN_MS)/1000) : 60;
+
+    const res = await fetch(`${BASE_URL}/send-code`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ email })
+    });
+    const j = await res.json().catch(()=>({}));
+    if(res.ok && j.ok){ document.getElementById('loginMsg').textContent = 'تم إرسال الكود إلى بريدك.'; startSendCooldown(cooldownSec); }
+    else { const err = j.error || 'فشل الإرسال'; document.getElementById('loginMsg').textContent = err; alert(err); }
+  }catch(e){ console.error(e); document.getElementById('loginMsg').textContent = 'فشل الاتصال بالخادم'; alert('فشل الاتصال بالخادم.'); }
+}
+
+async function verifyCode(){
+  const email = document.getElementById('loginEmail').value.trim();
+  const code = document.getElementById('loginCode').value.trim();
+  if(!email || !code){ alert('أدخل البريد والكود'); return; }
+
+  try{
+    const res = await fetch(`${BASE_URL}/verify-code`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ email, code })
+    });
+    const j = await res.json().catch(()=>({}));
+    if(res.ok && j.ok){ document.getElementById('loginMsg').textContent = 'تم تسجيل الدخول بنجاح!'; alert('تم تسجيل الدخول بنجاح!'); }
+    else { const err = j.error || 'كود خاطئ أو منتهي'; document.getElementById('loginMsg').textContent = err; alert(err); }
+  }catch(e){ console.error(e); document.getElementById('loginMsg').textContent = 'فشل الاتصال بالخادم'; alert('فشل الاتصال بالخادم.'); }
+}
+</script>
+</body>
+  </html>
